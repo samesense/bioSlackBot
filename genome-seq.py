@@ -3,8 +3,8 @@ import time
 from slackclient import SlackClient
 import dotenv, twobitreader
 
-dotenv_path = '.env'
-dotenv.load_dotenv(dotenv_path)
+#dotenv_path = '.env'
+dotenv.load()
 
 # starterbot's ID as an environment variable
 
@@ -34,6 +34,11 @@ def handle_command(command, channel):
     seq = get_seq(tbFile, chrom, st, end)
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=seq, as_user=True)
+    r = slack_client.api_call("files.upload", channels=channel,
+                              content="ho ho ho", filename="test3.txt",
+                              as_user=True)
+    print('uploaded file')
+    print(r)
 
 def parse_slack_output(slack_rtm_output):
     """
