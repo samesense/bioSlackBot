@@ -8,14 +8,14 @@ dotenv.load()
 
 # starterbot's ID as an environment variable
 
-BOT_ID = os.environ.get("BOT_ID")
+BOT_ID = os.environ.get("BOT_ID_BLOBEL")
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">:"
 #EXAMPLE_COMMAND = "do"
 
 # instantiate Slack & Twilio clients
-slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
+slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN_BLOBEL'))
 
 def loadCalls(table, chrom, st, end):
     """Load jc4 data.
@@ -45,21 +45,52 @@ def handle_command(table, command, channel):
     """
     print('yo')
     #if command.startswith(EXAMPLE_COMMAND):
-    genome, chrom, st, end = command.split(':')
+    try:
+        genome, chrom, st, end = command.split(':')
+        if 'chr' in chrom or \
+           not genome in ('jc4', 'mm9', 'hg19') or \
+           ',' in command or '-' in command:
+            slack_client.api_call("chat.postMessage", channel=channel,
+                              text='Format query like jc4:10:3002950:3012990',
+                              as_user=True)
+            return
+    except:
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text='Format query like jc4:10:3002950:3012990',
+                              as_user=True)
+        return
     st, end = int(st), int(end)
     tbFile = 'data/%s.2bit' % (genome, )
-    seq = get_seq(tbFile, chrom, st, end)
-    slack_client.api_call("chat.postMessage", channel=channel,
-                          text=seq, as_user=True)
+    print(end-st)
     
+    seqLen = end-st
+    # crashes @seqbot: jc4:10:3002950:301290940
+    print(end-st, 'done')
+    if seqLen <= 0:
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text='Enter larger region.', as_user=True)
+    elif seqLen < 100:
+        seq = get_seq(tbFile, chrom, st, end)
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text=seq, as_user=True)
+    else:
+        seq = get_seq(tbFile, chrom, st, st+100)
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text='Region is too large to print.\nUsing first 100 bases.\njc4 variants will span the whole region.', as_user=True)
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text=seq, as_user=True)
+#    print('here')
     if genome == 'jc4':
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text='Looking up variants ...', as_user=True)
         calls = loadCalls(table, chrom, st, end)
         if calls:
             content = calls
         else:
             content = 'no variants'
+        #print(content)
         r = slack_client.api_call("files.upload", channels=channel,
-                                  content=calls, filename="test%s.txt" % (str(st),),
+                                  content=content, filename="test%s.txt" % (str(st),),
                                   as_user=True)
         print('uploaded file')
         print(r)
@@ -88,6 +119,7 @@ if __name__ == "__main__":
         #mm9TwoBitFile = 'data/mm9.2bit'
         while True:
             command, channel = parse_slack_output(slack_client.rtm_read())
+            print('ok', command, channel)
             if command and channel:
                 handle_command(table, command, channel)
             time.sleep(READ_WEBSOCKET_DELAY)
